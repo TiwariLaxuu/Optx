@@ -638,11 +638,11 @@ cdef class Strategy:
         self.__compute_expectation=compute_expectation
         self.__use_dates=use_dates
         
-        if s.shape[0]>0 and (int(s.max()-s.min())*100+1==s.shape[0]):
-            self.__s=s.copy()
+        if s.shape[0]>0:
+            self.__s=asarray(s)
             
         if s_mc.shape[0]>0:
-            self.__s_mc=s_mc.copy()
+            self.__s_mc=asarray(s_mc)
                     
     cpdef void getdatafromjson(self,str jsonstring):
         '''
