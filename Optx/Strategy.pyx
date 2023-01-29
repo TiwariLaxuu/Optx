@@ -4,15 +4,15 @@ from numpy.lib.scimath import sqrt
 cimport numpy as np
 import json
 from cpython.datetime cimport date,datetime,timedelta
-from Optx.BlackScholes import (getBSinfo,
-                               getimpliedvol)
-from Optx.Support import (getPLprofile,
-                          getPLprofilestock,
-                          getPLprofileBS,
-                          getprofitrange,
-                          getsequentialprices,
-                          getrandomprices,
-                          getPoP)
+from OptionLib.BlackScholes import (getBSinfo,
+                                    getimpliedvol)
+from OptionLib.Support import (getPLprofile,
+                               getPLprofilestock,
+                               getPLprofileBS,
+                               getprofitrange,
+                               getsequentialprices,
+                               getrandomprices,
+                               getPoP)
 
 cdef class Strategy:  
     cdef:
@@ -412,6 +412,15 @@ cdef class Strategy:
                     negative, it means that the position is closed and the 
                     difference between this price and the current price is 
                     considered in the payoff calculation.
+            For a non-determined previous position to be closed, which might 
+            consist of any combination of calls, puts and stocks, the dictionary  
+            must contain two keys:
+                "type" : string
+                    It must be 'closed'. It is mandatory.
+                "prevpos" : float
+                    The total value of the position to be closed, which can be 
+                    positive if it made a profit or negative if it is a loss. 
+                    It is mandatory.
         profittarg : double, optional
             Target profit level. Default is -1.0, which means it is not 
             calculated.
@@ -620,8 +629,25 @@ cdef class Strategy:
                     self.__expiration.append(self.__targetdate)
                 else:
                     self.__expiration.append(-1)
+            elif strategy[i]["type"]=="closed":
+                if "prevpos" in strategy[i].keys():
+                    self.__prevpos.append(float(strategy[i]["prevpos"]))
+                else:
+                    raise KeyError("Key 'prevpos' is missing!")
+                    
+                self.__strike.append(0.0)
+                self.__n.append(0)
+                self.__premium.append(0.0)
+                self.__action.append("n/a")
+                self.__usebs.append(False)
+                self.__days2maturity.append(-1)
+                
+                if use_dates:
+                    self.__expiration.append(self.__targetdate)
+                else:
+                    self.__expiration.append(-1)
             else:
-                raise ValueError("Type must be 'call', 'put' or 'stock'!")
+                raise ValueError("Type must be 'call', 'put', 'stock' or 'closed'!")
                             
         self.__stockprice=stockprice
         self.__volatility=volatility
@@ -788,12 +814,12 @@ cdef class Strategy:
         '''
         if len(self.__type)==0:
             raise RuntimeError("No legs in the strategy! Nothing to do!")
-            
-        if not self.__distribution in ["normal","laplace","normal-risk-neutral",
-                                       "mc","montecarlo"]:
-            raise ValueError("Invalid distribution!")
-            
-        if self.__distribution in ["mc","montecarlo"] and \
+        elif self.__type.count("closed")>1:
+            raise RuntimeError("Only one position of type 'closed' can be accepted!")
+        elif not self.__distribution in ["normal","laplace","normal-risk-neutral",
+                                         "mc","montecarlo"]:
+            raise ValueError("Invalid distribution!")  
+        elif self.__distribution in ["mc","montecarlo"] and \
             self.__s_mc.shape[0]==0:
             raise RuntimeError("No terminal stock prices from MC simulations! Nothing to do!")
                         
@@ -880,10 +906,11 @@ cdef class Strategy:
                         balancetmp*=-1.0
                         
                     self.balance[i]=balancetmp
-                    self.profit[i]=balancetmp
+                    self.profit[i]+=balancetmp
                     
-                    if self.__compute_expectation:
-                        self.profit_mc[i]=balancetmp
+                    if self.__compute_expectation or \
+                        self.__distribution in ["mc","montecarlo"]:
+                        self.profit_mc[i]+=balancetmp
                 else:
                     if self.__prevpos[i]>0.0: # Premium of the open position
                         opval=self.__prevpos[i]
@@ -947,7 +974,7 @@ cdef class Strategy:
                             balancetmp*=-1.0
                             
                         self.balance[i]=balancetmp                      
-            else:
+            elif self.__type[i]=="stock":
                 self.impvol.append(0.0)
                 self.itmprob.append(1.0)
                 self.delta.append(1.0)
@@ -963,10 +990,11 @@ cdef class Strategy:
                         balancetmp*=-1.0                    
                     
                     self.balance[i]=balancetmp
-                    self.profit[i]=balancetmp
+                    self.profit[i]+=balancetmp
                     
-                    if self.__compute_expectation:
-                        self.profit_mc[i]=balancetmp
+                    if self.__compute_expectation or \
+                        self.__distribution in ["mc","montecarlo"]:
+                        self.profit_mc[i]+=balancetmp
                 else:
                     if self.__prevpos[i]>0.0: # Stock price at previous position
                         stockpos=self.__prevpos[i]
@@ -997,6 +1025,20 @@ cdef class Strategy:
                             balancetmp*=-1.0
                             
                         self.balance[i]=balancetmp
+            elif self.__type[i]=="closed":
+                self.impvol.append(0.0)
+                self.itmprob.append(0.0)
+                self.delta.append(0.0)
+                self.gamma.append(0.0)
+                self.vega.append(0.0)
+                self.theta.append(0.0)
+                
+                self.balance[i]=self.__prevpos[i]
+                self.profit[i]+=self.__prevpos[i]
+                
+                if self.__compute_expectation or \
+                    self.__distribution in ["mc","montecarlo"]:
+                    self.profit_mc[i]+=self.__prevpos[i]
             
             self.totprofit+=self.profit[i]
             self.totbalance+=self.balance[i]
@@ -1055,7 +1097,7 @@ cdef class Strategy:
                     self.losslimitprob=1.0-getPoP(self.__losslimitranges,
                                                   self.__distribution,
                                                   {"pricearray":self.__s_mc})
-
+                        
     cpdef int getnonbusinessdays(self,date startdate,date enddate):
         '''
         getnonbusinessdays -> returns the number of non-business days between 

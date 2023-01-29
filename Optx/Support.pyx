@@ -389,7 +389,7 @@ cpdef double getPoP(list profitranges,str source="normal",dict kwargs={}):
             beta=sigma/sqrt(2.0)
                     
         for i in range(len(profitranges)):
-            lval=profitranges[i][0]-0.01
+            lval=profitranges[i][0]
             
             if lval<=0.0:
                 lval=1e-10
