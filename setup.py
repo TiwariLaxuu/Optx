@@ -10,7 +10,7 @@ exts=[Extension(name="Optx.BlackScholes",
       Extension(name="Optx.Strategy",
                 sources=["Optx/Strategy.pyx"])]
 
-setup(name='Optx',version='0.1.2',
+setup(name='Optx',version='0.1.3',
       requires=['scipy','numpy','datetime','cython'],
       author='Roberto Gomes',
       packages=find_packages(),
