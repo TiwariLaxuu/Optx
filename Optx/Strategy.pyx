@@ -4,15 +4,15 @@ from numpy.lib.scimath import sqrt
 cimport numpy as np
 import json
 from cpython.datetime cimport date,datetime,timedelta
-from OptionLib.BlackScholes import (getBSinfo,
-                                    getimpliedvol)
-from OptionLib.Support import (getPLprofile,
-                               getPLprofilestock,
-                               getPLprofileBS,
-                               getprofitrange,
-                               getsequentialprices,
-                               getrandomprices,
-                               getPoP)
+from Optx.BlackScholes import (getBSinfo,
+                               getimpliedvol)
+from Optx.Support import (getPLprofile,
+                          getPLprofilestock,
+                          getPLprofileBS,
+                          getprofitrange,
+                          getsequentialprices,
+                          getrandomprices,
+                          getPoP)
 
 cdef class Strategy:  
     cdef:
