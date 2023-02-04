@@ -2,6 +2,7 @@ from scipy import stats
 from numpy import array,exp,zeros,abs,round,diff,flatnonzero,arange,inf
 from numpy.random import normal,laplace
 from numpy.lib.scimath import log,sqrt
+from cpython.datetime cimport date,timedelta
 cimport numpy as np
 
 cpdef np.ndarray[np.float64_t,ndim=1] getpayoff(str optype,
@@ -196,6 +197,32 @@ cpdef list getPLprofileBS(str optype,
         raise ValueError("Option type must be either 'call' or 'put'!")
         
     return [fac*n*(calcprice-val)-commission,n*cost+commission]
+
+cpdef int getnonbusinessdays(date startdate,date enddate):
+    '''
+    getnonbusinessdays -> returns the number of non-business days between 
+    the start and end date, both provided as date objects.
+    
+    Arguments
+    ---------
+    startdate: Initial date in the range.
+    enddate: End date in the range.
+    '''
+    cdef int ndays=(enddate-startdate).days
+    cdef int nonbusinessdays=0
+    cdef date currdate
+    cdef Py_ssize_t i
+    
+    if enddate<startdate:
+        raise ValueError("End date must be after start date!")
+    
+    for i in range(ndays):
+        currdate=startdate+timedelta(days=i)
+        
+        if currdate.weekday()>=5:
+            nonbusinessdays+=1
+            
+    return nonbusinessdays
 
 cpdef np.ndarray[np.float64_t,ndim=1] getsequentialprices(double minprice,
                                                           double maxprice):

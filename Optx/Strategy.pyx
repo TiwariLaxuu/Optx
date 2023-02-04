@@ -3,13 +3,14 @@ from numpy import array,asarray,zeros,full,stack,isnan,savetxt
 from numpy.lib.scimath import sqrt
 cimport numpy as np
 import json
-from cpython.datetime cimport date,datetime,timedelta
+from cpython.datetime cimport date,datetime
 from Optx.BlackScholes import (getBSinfo,
                                getimpliedvol)
 from Optx.Support import (getPLprofile,
                           getPLprofilestock,
                           getPLprofileBS,
                           getprofitrange,
+                          getnonbusinessdays,
                           getsequentialprices,
                           getrandomprices,
                           getPoP)
@@ -495,28 +496,23 @@ cdef class Strategy:
             self.__daysinyear=365.0
         
         if use_dates:
-            try:
-                startdatetmp=datetime.strptime(startdate,"%Y-%m-%d").date()
-                targetdatetmp=datetime.strptime(targetdate,"%Y-%m-%d").date()
+            startdatetmp=datetime.strptime(startdate,"%Y-%m-%d").date()
+            targetdatetmp=datetime.strptime(targetdate,"%Y-%m-%d").date()
+            
+            if targetdatetmp>startdatetmp:
+                self.__startdate=startdatetmp
+                self.__targetdate=targetdatetmp
                 
-                if targetdatetmp>startdatetmp:
-                    self.__startdate=startdatetmp
-                    self.__targetdate=targetdatetmp
-                    
-                    if self.__discard_nonbusinessdays:
-                        ndiscardeddays=self.getnonbusinessdays(self.__startdate,
-                                                               self.__targetdate)
-                    else:
-                        ndiscardeddays=0
-                    
-                    self.__days2target=(self.__targetdate-
-                                        self.__startdate).days-ndiscardeddays
+                if self.__discard_nonbusinessdays:
+                    ndiscardeddays=getnonbusinessdays(self.__startdate,
+                                                      self.__targetdate)
                 else:
-                    raise ValueError("Start date cannot be after the target date!")
-            except:
-                print("Start date and target date must be provided in 'YYYY-MM-DD' format!")
+                    ndiscardeddays=0
                 
-                return
+                self.__days2target=(self.__targetdate-
+                                    self.__startdate).days-ndiscardeddays
+            else:
+                raise ValueError("Start date cannot be after the target date!")
         else:
             self.__days2target=days2targetdate
             
@@ -554,20 +550,10 @@ cdef class Strategy:
                     
                 if "expiration" in strategy[i].keys():
                     if use_dates:
-                        try:
-                            expirationtmp=datetime.strptime(strategy[i]["expiration"],
-                                                            "%Y-%m-%d").date()
-                        except:
-                            print("Expiration date must be provided in 'YYYY-MM-DD' format; input data may be corrupted!")
-                    
-                            return
+                        expirationtmp=datetime.strptime(strategy[i]["expiration"],
+                                                        "%Y-%m-%d").date()
                     else:
-                        try:
-                            days2maturitytmp=int(strategy[i]["expiration"])
-                        except:
-                            print("Days remaining to maturity must be provided as an integer!")
-                            
-                            return
+                        days2maturitytmp=int(strategy[i]["expiration"])
                 else:
                     if use_dates:
                         expirationtmp=self.__targetdate
@@ -579,8 +565,8 @@ cdef class Strategy:
                         self.__expiration.append(expirationtmp)
                         
                         if self.__discard_nonbusinessdays:
-                            ndiscardeddays=self.getnonbusinessdays(self.__startdate,
-                                                                   expirationtmp)
+                            ndiscardeddays=getnonbusinessdays(self.__startdate,
+                                                              expirationtmp)
                         else:
                             ndiscardeddays=0
                         
@@ -720,8 +706,8 @@ cdef class Strategy:
                                                       "%Y-%m-%d").date()
                 
                 if self.__discard_nonbusinessdays:
-                    ndiscardeddays=self.getnonbusinessdays(self.__startdate,
-                                                           self.__targetdate)
+                    ndiscardeddays=getnonbusinessdays(self.__startdate,
+                                                      self.__targetdate)
                 else:
                     ndiscardeddays=0
                 
@@ -734,8 +720,8 @@ cdef class Strategy:
                                                                "%Y-%m-%d").date())
                     
                     if self.__discard_nonbusinessdays:
-                        ndiscardeddays=self.getnonbusinessdays(self.__startdate,
-                                                               self.__expiration[i])
+                        ndiscardeddays=getnonbusinessdays(self.__startdate,
+                                                          self.__expiration[i])
                     else:
                         ndiscardeddays=0
                     
@@ -1097,39 +1083,6 @@ cdef class Strategy:
                     self.losslimitprob=1.0-getPoP(self.__losslimitranges,
                                                   self.__distribution,
                                                   {"pricearray":self.__s_mc})
-                        
-    cpdef int getnonbusinessdays(self,date startdate,date enddate):
-        '''
-        getnonbusinessdays -> returns the number of non-business days between 
-        the start and end date.
-        
-        Parameters
-        ----------
-        startdate : date
-            Initial date in the range.
-        enddate : date
-            End date in the range.
-        
-        Returns
-        -------
-        nonbusinessdays : int
-            Number of non-business days in the range of dates.
-        '''
-        cdef int ndays=(enddate-startdate).days
-        cdef int nonbusinessdays=0
-        cdef date currdate
-        cdef Py_ssize_t i
-        
-        if enddate<startdate:
-            raise ValueError("End date must be after start date!")
-        
-        for i in range(ndays):
-            currdate=startdate+timedelta(days=i)
-            
-            if currdate.weekday()>=5:
-                nonbusinessdays+=1
-                
-        return nonbusinessdays
             
     cpdef void csvpayoff(self,str filename="payoff.csv",int leg=-1):
         '''
