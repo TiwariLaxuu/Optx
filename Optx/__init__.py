@@ -2,4 +2,4 @@ from . import BlackScholes
 from . import Support
 from . import Strategy
 
-__version__="0.1.3"
+__version__="0.1.4"

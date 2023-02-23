@@ -1,4 +1,5 @@
 from __future__ import print_function
+from __future__ import division
 from numpy import array,asarray,zeros,full,stack,isnan,savetxt
 from numpy.lib.scimath import sqrt
 cimport numpy as np
@@ -19,13 +20,12 @@ cdef class Strategy:
     cdef:
         readonly np.ndarray __s,__s_mc
         readonly np.ndarray profit,profit_mc,totprofit,totprofit_mc
-        readonly list __strike,__premium,__n,__action,__type,__expiration,\
-            __usebs,__profitranges,__profittargrange,__losslimitranges,\
-            __prevpos,__days2maturity
+        readonly list __strike,__premium,__n,__action,__type,__expiration,__usebs,\
+            __profitranges,__profittargrange,__losslimitranges,__prevpos,__days2maturity
         readonly list impvol,delta,gamma,vega,theta,itmprob,balance
-        readonly int __days2target,__nmcprices
+        readonly int __days2target,__nmcprices,__daysinyear
         readonly double __stockprice,__volatility,__r,__profittarg,__losslimit,\
-            __optcommission,__stockcommission,__minstock,__maxstock,__daysinyear            
+            __optcommission,__stockcommission,__minstock,__maxstock            
         readonly double totbalance,profitprob,profittargprob,losslimitprob
         readonly date __targetdate,__startdate
         readonly str __distribution
@@ -82,7 +82,7 @@ cdef class Strategy:
         self.__compute_expectation=True
         self.__use_dates=True
         self.__discard_nonbusinessdays=True
-        self.__daysinyear=252.0
+        self.__daysinyear=252
         
     cpdef double getbalance(self,int leg=-1):
         '''
@@ -136,8 +136,7 @@ cdef class Strategy:
             Average profit, standard error of the profit, average loss,
             standard error of the loss, and probability of profit.
         '''        
-        cdef double avgprofit=0.0,avgloss=0.0,stderrprofit=0.0,stderrloss=0.0,\
-            pop=0.0
+        cdef double avgprofit=0.0,avgloss=0.0,stderrprofit=0.0,stderrloss=0.0,pop=0.0
         
         if self.totprofit_mc.shape[0]>0:
             avgprofit=self.totprofit_mc[self.totprofit_mc>=0.01].mean()
@@ -165,8 +164,7 @@ cdef class Strategy:
         
         return avgprofit,stderrprofit,avgloss,stderrloss,pop
 
-    cpdef (double,double,double,double,double,double) getBSresults(self,
-                                                                   int leg):
+    cpdef (double,double,double,double,double,double) getBSresults(self,int leg):
         '''
         getBSresults -> returns the implied volatility, the ITM probability, 
         and the Greeks Delta, Gamma, Theta and Vega for the specified leg in 
@@ -269,35 +267,34 @@ cdef class Strategy:
         for i in range(len(self.__expiration)):
             expirationstr.append(self.__expiration[i].strftime("%Y-%m-%d"))
         
-        jstr=json.dumps({
-            "StockPrice":self.__stockprice,
-            "Volatility":self.__volatility,
-            "StartDate":self.__startdate.strftime("%Y-%m-%d"),
-            "TargetDate":self.__targetdate.strftime("%Y-%m-%d"),
-            "DaysToTargetDate":self.__days2target,
-            "InterestRate":self.__r,
-            "StockPriceRangeBounds":[self.__minstock,self.__maxstock],
-            "ListOfStockPrices":s,
-            "OptionCommission":self.__optcommission,
-            "StockCommission":self.__stockcommission,
-            "ProfitTarget":self.__profittarg,
-            "LossLimit":self.__losslimit,
-            "Type":self.__type,
-            "Strike":self.__strike,
-            "Premium":self.__premium,
-            "Expiration":expirationstr,
-            "DaysToMaturity":self.__days2maturity,
-            "N":self.__n,
-            "Action":self.__action,
-            "PreviousPosition":self.__prevpos,
-            "Distribution":self.__distribution,
-            "NumberOfMCPrices":self.__nmcprices,
-            "ListOfStockPricesFromMC":s_mc,
-            "ComputeTheGreeks":self.__compute_the_greeks,
-            "ComputeExpectationProfitAndLoss":self.__compute_expectation,
-            "UseDatesInCalculations":self.__use_dates,
-            "DiscardNonBusinessDays":self.__discard_nonbusinessdays,
-            },indent=4,sort_keys=True)
+        jstr=json.dumps({"StockPrice":self.__stockprice,
+                         "Volatility":self.__volatility,
+                         "StartDate":self.__startdate.strftime("%Y-%m-%d"),
+                         "TargetDate":self.__targetdate.strftime("%Y-%m-%d"),
+                         "DaysToTargetDate":self.__days2target,
+                         "InterestRate":self.__r,
+                         "StockPriceRangeBounds":[self.__minstock,self.__maxstock],
+                         "ListOfStockPrices":s,
+                         "OptionCommission":self.__optcommission,
+                         "StockCommission":self.__stockcommission,
+                         "ProfitTarget":self.__profittarg,
+                         "LossLimit":self.__losslimit,
+                         "Type":self.__type,
+                         "Strike":self.__strike,
+                         "Premium":self.__premium,
+                         "Expiration":expirationstr,
+                         "DaysToMaturity":self.__days2maturity,
+                         "N":self.__n,
+                         "Action":self.__action,
+                         "PreviousPosition":self.__prevpos,
+                         "Distribution":self.__distribution,
+                         "NumberOfMCPrices":self.__nmcprices,
+                         "ListOfStockPricesFromMC":s_mc,
+                         "ComputeTheGreeks":self.__compute_the_greeks,
+                         "ComputeExpectationProfitAndLoss":self.__compute_expectation,
+                         "UseDatesInCalculations":self.__use_dates,
+                         "DiscardNonBusinessDays":self.__discard_nonbusinessdays,},
+                        indent=4,sort_keys=True)
         
         return jstr
     
@@ -316,23 +313,22 @@ cdef class Strategy:
         '''
         cdef str jstr
         
-        jstr=json.dumps({
-            "ImpliedVolatility":self.impvol,
-            "InTheMoneyProbability":self.itmprob,
-            "Delta":self.delta,
-            "Gamma":self.gamma,
-            "Theta":self.theta,
-            "Vega":self.vega,
-            "ProfitRanges":self.__profitranges,
-            "ProfitTargetRanges":self.__profittargrange,
-            "StrategyBalance":self.totbalance,
-            "PerLegBalance":self.balance,
-            "ProbabilityOfProfit":self.profitprob,
-            "ProbabilityOfProfitTarget":self.profittargprob,
-            "ProbabilityOfLossLimit":self.losslimitprob,
-            "AverageProfitAndLossFromMC":list(self.getavgPLfromMC()),
-            "MaximumLossAndProfit":list(self.getmaxPL()),
-            },indent=4,sort_keys=True)
+        jstr=json.dumps({"ImpliedVolatility":self.impvol,
+                         "InTheMoneyProbability":self.itmprob,
+                         "Delta":self.delta,
+                         "Gamma":self.gamma,
+                         "Theta":self.theta,
+                         "Vega":self.vega,
+                         "ProfitRanges":self.__profitranges,
+                         "ProfitTargetRanges":self.__profittargrange,
+                         "StrategyBalance":self.totbalance,
+                         "PerLegBalance":self.balance,
+                         "ProbabilityOfProfit":self.profitprob,
+                         "ProbabilityOfProfitTarget":self.profittargprob,
+                         "ProbabilityOfLossLimit":self.losslimitprob,
+                         "AverageProfitAndLossFromMC":list(self.getavgPLfromMC()),
+                         "MaximumLossAndProfit":list(self.getmaxPL()),},
+                        indent=4,sort_keys=True)
         
         return jstr
     
@@ -491,9 +487,9 @@ cdef class Strategy:
         self.__discard_nonbusinessdays=discard_nonbusinessdays
             
         if self.__discard_nonbusinessdays:
-            self.__daysinyear=252.0
+            self.__daysinyear=252
         else:
-            self.__daysinyear=365.0
+            self.__daysinyear=365
         
         if use_dates:
             startdatetmp=datetime.strptime(startdate,"%Y-%m-%d").date()
@@ -504,13 +500,11 @@ cdef class Strategy:
                 self.__targetdate=targetdatetmp
                 
                 if self.__discard_nonbusinessdays:
-                    ndiscardeddays=getnonbusinessdays(self.__startdate,
-                                                      self.__targetdate)
+                    ndiscardeddays=getnonbusinessdays(self.__startdate,self.__targetdate)
                 else:
                     ndiscardeddays=0
                 
-                self.__days2target=(self.__targetdate-
-                                    self.__startdate).days-ndiscardeddays
+                self.__days2target=(self.__targetdate-self.__startdate).days-ndiscardeddays
             else:
                 raise ValueError("Start date cannot be after the target date!")
         else:
@@ -565,13 +559,11 @@ cdef class Strategy:
                         self.__expiration.append(expirationtmp)
                         
                         if self.__discard_nonbusinessdays:
-                            ndiscardeddays=getnonbusinessdays(self.__startdate,
-                                                              expirationtmp)
+                            ndiscardeddays=getnonbusinessdays(self.__startdate,expirationtmp)
                         else:
                             ndiscardeddays=0
                         
-                        self.__days2maturity.append((expirationtmp-
-                                                     self.__startdate).days-
+                        self.__days2maturity.append((expirationtmp-self.__startdate).days-
                                                     ndiscardeddays)
                             
                         if expirationtmp==self.__targetdate:
@@ -692,41 +684,34 @@ cdef class Strategy:
                 self.__discard_nonbusinessdays=True
                 
             if self.__discard_nonbusinessdays:
-                self.__daysinyear=252.0
+                self.__daysinyear=252
             else:
-                self.__daysinyear=365.0
+                self.__daysinyear=365
             
             self.__stockprice=float(d["StockPrice"])
             self.__volatility=float(d["Volatility"])
             
             if self.__use_dates:
-                self.__startdate=datetime.strptime(d["StartDate"],
-                                                     "%Y-%m-%d").date()
-                self.__targetdate=datetime.strptime(d["TargetDate"],
-                                                      "%Y-%m-%d").date()
+                self.__startdate=datetime.strptime(d["StartDate"],"%Y-%m-%d").date()
+                self.__targetdate=datetime.strptime(d["TargetDate"],"%Y-%m-%d").date()
                 
                 if self.__discard_nonbusinessdays:
-                    ndiscardeddays=getnonbusinessdays(self.__startdate,
-                                                      self.__targetdate)
+                    ndiscardeddays=getnonbusinessdays(self.__startdate,self.__targetdate)
                 else:
                     ndiscardeddays=0
                 
-                self.__days2target=(self.__targetdate-
-                                    self.__startdate).days-ndiscardeddays
+                self.__days2target=(self.__targetdate-self.__startdate).days-ndiscardeddays
                 expirationtmp=d["Expiration"].copy()
             
                 for i in range(len(expirationtmp)):
-                    self.__expiration.append(datetime.strptime(expirationtmp[i],
-                                                               "%Y-%m-%d").date())
+                    self.__expiration.append(datetime.strptime(expirationtmp[i],"%Y-%m-%d").date())
                     
                     if self.__discard_nonbusinessdays:
-                        ndiscardeddays=getnonbusinessdays(self.__startdate,
-                                                          self.__expiration[i])
+                        ndiscardeddays=getnonbusinessdays(self.__startdate,self.__expiration[i])
                     else:
                         ndiscardeddays=0
                     
-                    self.__days2maturity.append((self.__expiration[i]-
-                                                self.__startdate).days-
+                    self.__days2maturity.append((self.__expiration[i]-self.__startdate).days-
                                                 ndiscardeddays)
                 
                     if self.__expiration[i]==self.__targetdate:
@@ -802,11 +787,9 @@ cdef class Strategy:
             raise RuntimeError("No legs in the strategy! Nothing to do!")
         elif self.__type.count("closed")>1:
             raise RuntimeError("Only one position of type 'closed' can be accepted!")
-        elif not self.__distribution in ["normal","laplace","normal-risk-neutral",
-                                         "mc","montecarlo"]:
+        elif not self.__distribution in ["normal","laplace","normal-risk-neutral","mc","montecarlo"]:
             raise ValueError("Invalid distribution!")  
-        elif self.__distribution in ["mc","montecarlo"] and \
-            self.__s_mc.shape[0]==0:
+        elif self.__distribution in ["mc","montecarlo"] and self.__s_mc.shape[0]==0:
             raise RuntimeError("No terminal stock prices from MC simulations! Nothing to do!")
                         
         cdef Py_ssize_t i
@@ -840,10 +823,10 @@ cdef class Strategy:
                 if self.__compute_the_greeks and self.__prevpos[i]>=0.0:
                     time2maturity=self.__days2maturity[i]/self.__daysinyear                    
                     calldelta,putdelta,calltheta,puttheta,gamma,vega,\
-                        callitmprob,putitmprob=\
-                        getBSinfo(self.__stockprice,self.__strike[i],
-                                  self.__r,self.__volatility,
-                                  time2maturity)[2:]               
+                        callitmprob,putitmprob=getBSinfo(self.__stockprice,
+                                                         self.__strike[i],
+                                                         self.__r,self.__volatility,
+                                                         time2maturity)[2:]               
      
                     self.gamma.append(gamma)
                     self.vega.append(vega)
@@ -885,8 +868,7 @@ cdef class Strategy:
                     self.theta.append(0.0)
                     
                 if self.__prevpos[i]<0.0: # Previous position is closed
-                    balancetmp=(self.__premium[i]+
-                                self.__prevpos[i])*self.__n[i]
+                    balancetmp=(self.__premium[i]+self.__prevpos[i])*self.__n[i]
                     
                     if self.__action[i]=="buy":
                         balancetmp*=-1.0
@@ -894,8 +876,7 @@ cdef class Strategy:
                     self.balance[i]=balancetmp
                     self.profit[i]+=balancetmp
                     
-                    if self.__compute_expectation or \
-                        self.__distribution in ["mc","montecarlo"]:
+                    if self.__compute_expectation or self.__distribution in ["mc","montecarlo"]:
                         self.profit_mc[i]+=balancetmp
                 else:
                     if self.__prevpos[i]>0.0: # Premium of the open position
@@ -904,57 +885,52 @@ cdef class Strategy:
                         opval=self.__premium[i]
                     
                     if self.__usebs[i]:
-                        self.profit[i],self.balance[i]=\
-                            getPLprofileBS(self.__type[i],
-                                           self.__action[i],
-                                           self.__strike[i],
-                                           opval,
-                                           self.__r,
-                                           (self.__days2maturity[i]-
-                                            self.__days2target)/self.__daysinyear,
-                                           self.__volatility,
-                                           self.__n[i],
-                                           self.__s,
-                                           self.__optcommission)
+                        self.profit[i],self.balance[i]=getPLprofileBS(self.__type[i],
+                                                                      self.__action[i],
+                                                                      self.__strike[i],
+                                                                      opval,
+                                                                      self.__r,
+                                                                      (self.__days2maturity[i]-
+                                                                       self.__days2target)/
+                                                                      self.__daysinyear,
+                                                                      self.__volatility,
+                                                                      self.__n[i],
+                                                                      self.__s,
+                                                                      self.__optcommission)
                         
-                        if self.__compute_expectation or \
-                            self.__distribution in ["mc","montecarlo"]:
-                            self.profit_mc[i]=\
-                                getPLprofileBS(self.__type[i],
-                                               self.__action[i],
-                                               self.__strike[i],
-                                               opval,
-                                               self.__r,
-                                               (self.__days2maturity[i]-
-                                                self.__days2target)/self.__daysinyear,
-                                               self.__volatility,
-                                               self.__n[i],
-                                               self.__s_mc,
-                                               self.__optcommission)[0]
+                        if self.__compute_expectation or self.__distribution in ["mc","montecarlo"]:
+                            self.profit_mc[i]=getPLprofileBS(self.__type[i],
+                                                             self.__action[i],
+                                                             self.__strike[i],
+                                                             opval,
+                                                             self.__r,
+                                                             (self.__days2maturity[i]-
+                                                              self.__days2target)/
+                                                             self.__daysinyear,
+                                                             self.__volatility,
+                                                             self.__n[i],
+                                                             self.__s_mc,
+                                                             self.__optcommission)[0]
                     else:                       
-                        self.profit[i],self.balance[i]=\
-                            getPLprofile(self.__type[i],
-                                         self.__action[i],
-                                         self.__strike[i],
-                                         opval,
-                                         self.__n[i],
-                                         self.__s,
-                                         self.__optcommission)
+                        self.profit[i],self.balance[i]=getPLprofile(self.__type[i],
+                                                                    self.__action[i],
+                                                                    self.__strike[i],
+                                                                    opval,
+                                                                    self.__n[i],
+                                                                    self.__s,
+                                                                    self.__optcommission)
                         
-                        if self.__compute_expectation or \
-                            self.__distribution in ["mc","montecarlo"]:
-                            self.profit_mc[i]=\
-                                getPLprofile(self.__type[i],
-                                             self.__action[i],
-                                             self.__strike[i],
-                                             opval,
-                                             self.__n[i],
-                                             self.__s_mc,
-                                             self.__optcommission)[0]
+                        if self.__compute_expectation or self.__distribution in ["mc","montecarlo"]:
+                            self.profit_mc[i]=getPLprofile(self.__type[i],
+                                                           self.__action[i],
+                                                           self.__strike[i],
+                                                           opval,
+                                                           self.__n[i],
+                                                           self.__s_mc,
+                                                           self.__optcommission)[0]
                             
                     if self.__prevpos[i]>0.0:
-                        balancetmp=(self.__premium[i]-
-                                    self.__prevpos[i])*self.__n[i]
+                        balancetmp=(self.__premium[i]-self.__prevpos[i])*self.__n[i]
                         
                         if self.__action[i]=="sell":
                             balancetmp*=-1.0
@@ -969,8 +945,7 @@ cdef class Strategy:
                 self.theta.append(0.0)
                                 
                 if self.__prevpos[i]<0.0: # Previous position is closed
-                    balancetmp=(self.__stockprice+
-                                self.__prevpos[i])*self.__n[i]
+                    balancetmp=(self.__stockprice+self.__prevpos[i])*self.__n[i]
                         
                     if self.__action[i]=="buy":
                         balancetmp*=-1.0                    
@@ -978,8 +953,7 @@ cdef class Strategy:
                     self.balance[i]=balancetmp
                     self.profit[i]+=balancetmp
                     
-                    if self.__compute_expectation or \
-                        self.__distribution in ["mc","montecarlo"]:
+                    if self.__compute_expectation or self.__distribution in ["mc","montecarlo"]:
                         self.profit_mc[i]+=balancetmp
                 else:
                     if self.__prevpos[i]>0.0: # Stock price at previous position
@@ -987,25 +961,21 @@ cdef class Strategy:
                     else:   # Spot price of the stock at start date
                         stockpos=self.__stockprice
                 
-                    self.profit[i],self.balance[i]=\
-                        getPLprofilestock(stockpos,
-                                          self.__action[i],
-                                          self.__n[i],
-                                          self.__s,
-                                          self.__stockcommission)
+                    self.profit[i],self.balance[i]=getPLprofilestock(stockpos,
+                                                                     self.__action[i],
+                                                                     self.__n[i],
+                                                                     self.__s,
+                                                                     self.__stockcommission)
                     
-                    if self.__compute_expectation or \
-                        self.__distribution in ["mc","montecarlo"]:
-                        self.profit_mc[i]=\
-                            getPLprofilestock(stockpos,
-                                              self.__action[i],
-                                              self.__n[i],
-                                              self.__s_mc,
-                                              self.__stockcommission)[0]
+                    if self.__compute_expectation or self.__distribution in ["mc","montecarlo"]:
+                        self.profit_mc[i]=getPLprofilestock(stockpos,
+                                                            self.__action[i],
+                                                            self.__n[i],
+                                                            self.__s_mc,
+                                                            self.__stockcommission)[0]
                         
                     if self.__prevpos[i]>0.0:
-                        balancetmp=(self.__stockprice-
-                                    self.__prevpos[i])*self.__n[i]
+                        balancetmp=(self.__stockprice-self.__prevpos[i])*self.__n[i]
                         
                         if self.__action[i]=="sell":
                             balancetmp*=-1.0
@@ -1022,15 +992,13 @@ cdef class Strategy:
                 self.balance[i]=self.__prevpos[i]
                 self.profit[i]+=self.__prevpos[i]
                 
-                if self.__compute_expectation or \
-                    self.__distribution in ["mc","montecarlo"]:
+                if self.__compute_expectation or self.__distribution in ["mc","montecarlo"]:
                     self.profit_mc[i]+=self.__prevpos[i]
             
             self.totprofit+=self.profit[i]
             self.totbalance+=self.balance[i]
             
-            if self.__compute_expectation or \
-                self.__distribution in ["mc","montecarlo"]:
+            if self.__compute_expectation or self.__distribution in ["mc","montecarlo"]:
                 self.totprofit_mc+=self.profit_mc[i]
             
         self.__profitranges=getprofitrange(self.__s,self.totprofit)
@@ -1053,8 +1021,7 @@ cdef class Strategy:
                                                   self.__profittarg)
             
             if self.__profittargrange:
-                if self.__distribution in ["normal","laplace",
-                                           "normal-risk-neutral"]:                    
+                if self.__distribution in ["normal","laplace","normal-risk-neutral"]:                    
                     self.profittargprob=getPoP(self.__profittargrange,
                                                self.__distribution,
                                                {"stockprice":self.__stockprice,
@@ -1071,8 +1038,7 @@ cdef class Strategy:
                                                   self.__losslimit+0.01)
 
             if self.__losslimitranges:
-                if self.__distribution in ["normal","laplace",
-                                           "normal-risk-neutral"]:
+                if self.__distribution in ["normal","laplace","normal-risk-neutral"]:
                     self.losslimitprob=1.0-getPoP(self.__losslimitranges,
                                                   self.__distribution,
                                                   {"stockprice":self.__stockprice,
@@ -1106,6 +1072,5 @@ cdef class Strategy:
         else:
             arr=stack((self.__s,self.totprofit))
         
-        savetxt(filename,arr.transpose(),delimiter=",",
-                header="StockPrice,Profit/Loss")
+        savetxt(filename,arr.transpose(),delimiter=",",header="StockPrice,Profit/Loss")
         

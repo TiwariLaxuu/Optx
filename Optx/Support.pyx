@@ -1,3 +1,4 @@
+from __future__ import division
 from scipy import stats
 from numpy import array,exp,zeros,abs,round,diff,flatnonzero,arange,inf
 from numpy.random import normal,laplace
@@ -6,8 +7,7 @@ from cpython.datetime cimport date,timedelta
 cimport numpy as np
 
 cpdef np.ndarray[np.float64_t,ndim=1] getpayoff(str optype,
-                                                np.ndarray[np.float64_t,
-                                                           ndim=1] s,
+                                                np.ndarray[np.float64_t,ndim=1] s,
                                                 double x):
     '''
     getpayoff(optype,s,x) -> returns the payoff of an option trade at expiration.
@@ -28,8 +28,7 @@ cpdef np.ndarray[np.float64_t,ndim=1] getpayoff(str optype,
 cpdef np.ndarray[np.float64_t,ndim=1] getPLoption(str optype,
                                                   double opvalue,
                                                   str action,
-                                                  np.ndarray[np.float64_t,
-                                                             ndim=1] s,
+                                                  np.ndarray[np.float64_t,ndim=1] s,
                                                   double x):
     '''
     getPLoption(optype,opvalue,action,s,x) -> returns the profit (P) or loss 
@@ -52,8 +51,7 @@ cpdef np.ndarray[np.float64_t,ndim=1] getPLoption(str optype,
     
 cpdef np.ndarray[np.float64_t,ndim=1] getPLstock(double s0,
                                                  str action,
-                                                 np.ndarray[np.float64_t,
-                                                            ndim=1] s):
+                                                 np.ndarray[np.float64_t,ndim=1] s):
     '''
     getPLstock(s0,action,s) -> returns the profit (P) or loss (L) of a stock
     position.
@@ -104,8 +102,7 @@ cpdef list getPLprofile(str optype,
         raise ValueError("Action must be either 'buy' or 'sell'!")
 
     if optype in ["call","put"]: 
-        return [n*getPLoption(optype,val,action,s,x)-commission,
-                n*cost+commission]
+        return [n*getPLoption(optype,val,action,s,x)-commission,n*cost+commission]
     else:
         raise ValueError("Option type must be either 'call' or 'put'!")
 
@@ -180,10 +177,8 @@ cpdef list getPLprofileBS(str optype,
     else:
         raise ValueError("Action must be either 'buy' or 'sell'!")  
 
-    cdef np.ndarray[np.float64_t,ndim=1] d1=(log(s/x)+
-                                             (r+volatility*volatility/2.0)*
-                                             targ2maturity)/(volatility*
-                                                             sqrt(targ2maturity))
+    cdef np.ndarray[np.float64_t,ndim=1] d1=(log(s/x)+(r+volatility*volatility/2.0)*
+                                             targ2maturity)/(volatility*sqrt(targ2maturity))
     cdef np.ndarray[np.float64_t,ndim=1] calcprice
     
     if optype=="call":
@@ -276,6 +271,40 @@ cpdef np.ndarray[np.float64_t,ndim=1] getrandomprices(double s0,
                            (volatility*sqrt(time2maturity))/sqrt(2.0),n))
     else:
         raise ValueError("Distribution must be 'normal', 'normal-risk-neutral' or 'laplace'!")
+
+cpdef dict getBSoptionchain(double s0,
+                            double minx,
+                            double maxx,
+                            double vol,
+                            double r,
+                            double time2maturity,
+                            int n):
+    '''
+    getBSoptionchain(s0,minx,maxx,vol,r,time2maturity,n) -> returns a calculated 
+    option chain using Black-Scholes model.
+    
+    Arguments:
+    ----------
+    s0: stock price.
+    minx: lowest strike.
+    maxx: highest strike.
+    vol: annualized volatility.
+    r: annualized risk-free interest rate.
+    time2maturity: time left before maturity.
+    n: number of strikes in the option chain.
+    '''
+    cdef np.ndarray[np.float64_t,ndim=1] x,c,p,d1
+    cdef double deltax=(maxx-minx)/(n-1)
+    cdef Py_ssize_t i
+    
+    x=round(array([(minx+i*deltax) for i in range(n)]),2)
+    d1=(log(s0/x)+(r+vol*vol/2.0)*time2maturity)/(vol*sqrt(time2maturity))
+    c=round((s0*stats.norm.cdf(d1)-x*exp(-r*time2maturity)*
+             stats.norm.cdf(d1-vol*sqrt(time2maturity))),2)
+    p=round((x*exp(-r*time2maturity)*stats.norm.cdf(-d1+vol*sqrt(time2maturity))-
+             s0*stats.norm.cdf(-d1)),2)
+        
+    return {"strikes":x,"calls":c,"puts":p}
                                     
 cpdef list getprofitrange(np.ndarray[np.float64_t,ndim=1] s,
                           np.ndarray[np.float64_t,ndim=1] profit,
